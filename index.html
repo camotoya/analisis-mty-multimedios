@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
+<title>Postmortem campaña Multimedios — MTY</title>
+<style>
+  :root {
+    --bg: #fafaf7; --card: #ffffff;
+    --text: #1f2937; --text-muted: #6b7280; --text-title: #111827;
+    --accent: #4f46e5; --accent-soft: #eef2ff;
+    --habi-purple: #5C36AB;
+    --habi-magenta: #C026D3;
+    --border: #e5e7eb; --code-bg: #f3f4f6; --table-alt: #f9fafb;
+    --warn-bg: #fef3c7; --warn-border: #f59e0b;
+    --info-bg: #dbeafe; --info-border: #4f46e5;
+    --ok-bg: #ecfdf5; --ok-border: #10b981;
+    --danger-bg: #fee2e2; --danger-border: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.65; margin: 0; padding: 0; }
+  .topbar { position: sticky; top: 0; background: rgba(250,250,247,0.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; z-index: 100; flex-wrap: wrap; gap: 8px; }
+  .topbar a { color: var(--accent); text-decoration: none; margin-left: 14px; }
+  .topbar a:hover { text-decoration: underline; }
+  .topbar .back-hub { color: var(--text-muted); margin-left: 0; margin-right: 14px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; font-weight: 500; }
+  .topbar .back-hub:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 40px 28px 96px; }
+  h1 { color: var(--text-title); font-size: 2rem; font-weight: 700; margin: 0 0 6px; padding-bottom: 12px; border-bottom: 2px solid var(--accent); }
+  h2 { color: var(--habi-purple); font-size: 1.5rem; font-weight: 700; margin: 44px 0 12px; padding-top: 20px; border-top: 1px solid var(--border); }
+  h3 { color: var(--habi-magenta); font-size: 1.35rem; font-weight: 600; margin: 28px 0 10px; }
+  p, li { font-size: 15px; }
+  ul, ol { padding-left: 26px; }
+  li { margin-bottom: 6px; }
+  strong { color: var(--text-title); }
+  code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 13px; font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace; color: #be185d; }
+  .meta { font-size: 13px; color: var(--text-muted); margin: 8px 0 24px; }
+
+  .placeholder { background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px; padding: 20px; color: #6b7280; font-style: italic; text-align: center; }
+
+  .callout { padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0; font-size: 14px; }
+  .callout.info { background: var(--info-bg); border-left: 3px solid var(--info-border); color: #1e1b4b; }
+  .callout.warn { background: var(--warn-bg); border-left: 3px solid var(--warn-border); color: #78350f; }
+  .callout.ok { background: var(--ok-bg); border-left: 3px solid var(--ok-border); color: #064e3b; }
+  .callout.danger { background: var(--danger-bg); border-left: 3px solid var(--danger-border); color: #7f1d1d; }
+  .callout strong { color: inherit; }
+  .callout p { margin: 6px 0; font-size: 14px; }
+  .callout p:first-child { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 18px 0; display: block; overflow-x: auto; }
+  thead { background: var(--accent-soft); }
+  th { text-align: left; padding: 10px 12px; font-weight: 600; color: var(--text-title); border-bottom: 2px solid var(--accent); white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tbody tr:nth-child(even) { background: var(--table-alt); }
+  td:not(:first-child), th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 18px 0; }
+  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+  .kpi .label { flex-basis: 100%; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+  .kpi .val { font-weight: 700; color: var(--text-title); font-size: 18px; line-height: 1.2; }
+  .kpi .sub { color: var(--text-muted); font-size: 12px; margin-top: 0; }
+
+  h3.channel-section { margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--border); }
+  .channel-bar { display: flex; align-items: stretch; height: 28px; border-radius: 6px; overflow: hidden; margin: 14px 0 6px; border: 1px solid var(--border); }
+  .channel-bar > div { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: white; }
+  .channel-legend { display: flex; flex-wrap: wrap; gap: 12px 18px; font-size: 12px; color: var(--text-muted); margin-bottom: 18px; }
+  .channel-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span>
+    <a href="https://camotoya.github.io/tableros-marketing-habi/" class="back-hub">← Hub</a>
+    📺 Postmortem · Multimedios MTY — marzo 2026
+  </span>
+  <span>
+    <a href="#resumen">Resumen</a>
+    <a href="#cap-1">Cap. 1: La campaña</a>
+  </span>
+</div>
+
+<div class="wrap">
+
+<h1>Postmortem campaña Multimedios — MTY</h1>
+<div class="meta">
+  <strong>Fecha:</strong> 2026-04-28 · <strong>Autor:</strong> Camilo Otoya — growth/marketing<br>
+  <strong>Scope:</strong> Zona Metropolitana de Monterrey, México · <strong>Estado del documento:</strong> en construcción
+</div>
+
+<h2 id="resumen">Resumen ejecutivo</h2>
+<div class="placeholder">
+  Se completará al final del documento, una vez tengamos todas las conclusiones del impacto medido.
+</div>
+
+<h2 id="cap-1">Capítulo 1 — La campaña: ALL-IN TUHABI Monterrey</h2>
+
+<p>Entre el <strong>17 y el 30 de marzo de 2026</strong>, TUHABI desplegó una campaña de saturación multi-canal en la Zona Metropolitana de Monterrey con la operadora <strong>Multimedios</strong>. El plan combinó televisión, radio, exterior (OOH), digital y prensa con el objetivo de generar el máximo nivel de exposición de marca posible en la región durante dos semanas.</p>
+
+<p>La campaña se planteó como un <em>burst</em> intensivo — la apuesta más grande del año en plaza única — para evaluar el efecto integral de medios masivos sobre el funnel de leads en MTY.</p>
+
+<h3>Cifras clave</h3>
+
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Inversión total</div><div class="val">MXN $3.93 M</div><div class="sub">≈ USD $194 K</div></div>
+  <div class="kpi"><div class="label">Duración</div><div class="val">14 días</div><div class="sub">17 → 30 mar 2026</div></div>
+  <div class="kpi"><div class="label">Plaza</div><div class="val">Monterrey</div><div class="sub">Zona metropolitana, NL</div></div>
+  <div class="kpi"><div class="label">Canales activos</div><div class="val">5</div><div class="sub">TV · Radio · OOH · Digital · Print</div></div>
+</div>
+
+<h3>Distribución de inversión por canal</h3>
+
+<div class="channel-bar">
+  <div style="background:#4f46e5; width:33.7%">OOH 33.7%</div>
+  <div style="background:#dc2626; width:26.1%">TV 26.1%</div>
+  <div style="background:#f59e0b; width:25.7%">Radio 25.7%</div>
+  <div style="background:#10b981; width:8.2%">Digital 8.2%</div>
+  <div style="background:#6b7280; width:6.3%">Print 6.3%</div>
+</div>
+<div class="channel-legend">
+  <span style="--c:#4f46e5"><span style="background:#4f46e5"></span>OOH — Vía pública</span>
+  <span><span style="background:#dc2626"></span>TV — Canal 6</span>
+  <span><span style="background:#f59e0b"></span>Radio — Multimedios MTY</span>
+  <span><span style="background:#10b981"></span>Digital — portales</span>
+  <span><span style="background:#6b7280"></span>Print — Milenio</span>
+</div>
+
+<table>
+  <thead>
+    <tr><th>Canal</th><th>Inversión MXN</th><th>%</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>OOH</strong> (Vía pública digital y tradicional)</td><td>$1,325,000</td><td>33.7%</td></tr>
+    <tr><td><strong>Televisión</strong> (Canal 6 Multimedios)</td><td>$1,023,442</td><td>26.1%</td></tr>
+    <tr><td><strong>Radio</strong> (Multimedios Radio Monterrey, 10 emisoras)</td><td>$1,008,300</td><td>25.7%</td></tr>
+    <tr><td><strong>Digital</strong> (4 portales + historias con talento)</td><td>$323,505</td><td>8.2%</td></tr>
+    <tr><td><strong>Print</strong> (Milenio Prensa)</td><td>$248,400</td><td>6.3%</td></tr>
+    <tr style="background:var(--accent-soft); font-weight:700">
+      <td>Total</td><td>$3,928,646</td><td>100%</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>El peso de la inversión está concentrado en los <strong>tres canales tradicionales de masivos</strong> — OOH, TV y Radio — que en conjunto representan el <strong>85.5% del presupuesto</strong>. Digital y Print completan el mix con un rol más complementario.</p>
+
+<h3 class="channel-section">Televisión — Canal 6 Multimedios</h3>
+
+<p>14 días continuos de presencia en la programación local de Canal 6, cubriendo los principales horarios de Monterrey:</p>
+
+<table>
+  <thead><tr><th>Programa</th><th>Horario</th><th>Acción</th></tr></thead>
+  <tbody>
+    <tr><td>TD Matutino</td><td>07:00–10:00</td><td>Spoteo 20" diario · Mención 60" alterna</td></tr>
+    <tr><td>Vivalavi</td><td>10:00–12:00</td><td>Spoteo 20" diario</td></tr>
+    <tr><td>Futbol al Día</td><td>10:00–12:00</td><td>Mención 60" alterna</td></tr>
+    <tr><td>TD Vespertino</td><td>12:00–15:00</td><td>Spoteo 20" diario · Mención 60" alterna</td></tr>
+    <tr><td>C4</td><td>18:00–19:00</td><td>Spoteo 20"</td></tr>
+    <tr><td>TD Nocturno</td><td>19:00–21:00</td><td>Spoteo 20" diario</td></tr>
+    <tr><td>Barra Nocturna</td><td>22:00–24:00</td><td>Spoteo 20"</td></tr>
+    <tr><td>TD Matutino y Vespertino</td><td>—</td><td><strong>Back & Front</strong> diario (apertura/cierre de bloque)</td></tr>
+  </tbody>
+</table>
+
+<p>La estrategia combina <strong>spots de 20"</strong> para reach amplio y consistente con <strong>menciones de 60"</strong> y <strong>back & fronts</strong> para profundidad de mensaje en momentos clave del día.</p>
+
+<h3 class="channel-section">Radio — Multimedios Radio Monterrey</h3>
+
+<p><strong>10 emisoras simultáneas</strong> en MTY cubriendo todos los segmentos demográficos y géneros musicales:</p>
+
+<ul>
+  <li><strong>Música contemporánea</strong>: La Caliente (94.1 FM), La Lupe (105.3 FM), Hits (106.1 FM), D99 (98.9 FM)</li>
+  <li><strong>Música tradicional / regional</strong>: La Ke Buena (103.7 FM), Radio Recuerdo (860 AM), Classic (106.9 FM)</li>
+  <li><strong>Noticias / hablado</strong>: AW-FM (1280 AM), La T Grande (990 AM)</li>
+  <li><strong>Deportes</strong>: RG La Deportiva (690 AM)</li>
+</ul>
+
+<p>Volumen estimado: <strong>~78 spots de 20" por día</strong> (6 spots × 10 emisoras lunes-viernes; 60 sábados/domingos) más <strong>3 menciones de 40"</strong> por emisora en días seleccionados (lunes-jueves principalmente). Sumando las dos semanas: <strong>más de 1,000 impactos auditivos diarios</strong> repartidos entre todas las emisoras.</p>
+
+<h3 class="channel-section">OOH — Vía pública</h3>
+
+<table>
+  <thead><tr><th>Formato</th><th>Plaza</th><th>Sitios</th><th>Tarifa MXN/sitio</th><th>Inversión</th></tr></thead>
+  <tbody>
+    <tr><td>Circuito Digital</td><td>MTY</td><td>5</td><td>$95,000</td><td>$475,000</td></tr>
+    <tr><td>Pantallas Normales</td><td>MTY</td><td>10</td><td>$85,000</td><td>$850,000</td></tr>
+    <tr style="background:var(--accent-soft); font-weight:700"><td colspan="4">Total OOH</td><td>$1,325,000</td></tr>
+  </tbody>
+</table>
+
+<p>15 puntos físicos en MTY durante los 14 días — el canal con la mayor inversión absoluta.</p>
+
+<h3 class="channel-section">Digital — Portales y redes</h3>
+
+<p>Display en 4 portales con cobertura nacional:</p>
+
+<ul>
+  <li><strong>MEDIOTIEMPO.COM</strong> — Mediotiempo deportes</li>
+  <li><strong>CHIC</strong> — Lifestyle</li>
+  <li><strong>TELEDIARIO.COM</strong> — Noticias Multimedios</li>
+  <li><strong>MULTIMEDIOS.COM</strong> — Portal corporativo</li>
+</ul>
+
+<p>6 formatos por portal (BigBox, Filmstrip, Interstitial, Leaderboard, Takeover, Skyscrapper), totalizando <strong>~1.97 millones de impresiones</strong> y <strong>~11 mil clics estimados</strong>. Inversión: $263,505 MXN.</p>
+
+<p>Sumado a esto, <strong>3 historias con talento</strong> en Instagram y Facebook de Multimedios:</p>
+
+<table>
+  <thead><tr><th>Plataforma</th><th>Cuenta</th><th>Seguidores</th><th>Alcance estimado</th></tr></thead>
+  <tbody>
+    <tr><td>Instagram</td><td>@multimediostv</td><td>936,000</td><td>~80,000</td></tr>
+    <tr><td>Facebook</td><td>Multimedios TV</td><td>6,500,000</td><td>~120,000</td></tr>
+    <tr style="background:var(--accent-soft); font-weight:700"><td colspan="3">Total historias (6 publicaciones)</td><td>~200,000</td></tr>
+  </tbody>
+</table>
+
+<p>Inversión historias: $60,000 MXN. <strong>Total digital: $323,505 MXN.</strong></p>
+
+<div class="callout warn">
+  <p><strong>Nota:</strong> el display en estos 4 portales fue de <strong>cobertura nacional</strong>, no segmentado a MTY. Parte de las impresiones impactaron fuera de la zona objetivo y meten ruido al medir el efecto exclusivo en MTY.</p>
+</div>
+
+<h3 class="channel-section">Print — Milenio Prensa MTY</h3>
+
+<ul>
+  <li><strong>1 plana</strong> en periódico Milenio (lunes de la segunda semana de campaña).</li>
+  <li><strong>2 inserciones tipo CHIC</strong> (jueves de cada semana).</li>
+</ul>
+
+<p>Inversión: $248,400 MXN. Es el canal de menor peso en la mezcla.</p>
+
+<h3>Hipótesis de la campaña</h3>
+
+<p>El plan se diseñó para impactar las distintas etapas del funnel de marketing en sellers:</p>
+
+<ol>
+  <li><strong>Awareness</strong>: la saturación de 5 canales × 14 días debería empujar el <em>top of mind</em> de Tuhabi en MTY.</li>
+  <li><strong>Consideration</strong>: el awareness debería traducirse en búsquedas de la marca y recordación al pensar en vender.</li>
+  <li><strong>Conversion</strong>: la consideración debería convertirse en visitas a tuhabi.mx y registros en el formulario.</li>
+  <li><strong>Efecto residual</strong>: el recuerdo debería sostener tráfico y registros por encima del baseline varias semanas post-campaña.</li>
+  <li><strong>Conversion en el pipeline comercial</strong>: los registros nuevos deberían avanzar en el funnel (calificación → cierre) al menos al mismo ritmo que el baseline.</li>
+</ol>
+
+<div class="callout info">
+  <p>Es una <strong>campaña de brand</strong>, no de performance. Aún así mediremos su impacto en todo el funnel de marketing en sellers — de awareness a cierre.</p>
+</div>
+
+
+<div class="placeholder" style="margin-top:32px">
+  Siguientes capítulos (por construir según lo que vayamos midiendo).
+</div>
+
+</div>
+
+</body>
+</html>
